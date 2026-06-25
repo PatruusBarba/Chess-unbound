@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chess Unbound</title>
+<style>
+  :root{
+    --bg:#1b1d23; --panel:#252833; --panel2:#2e3240; --ink:#e8eaf0; --muted:#9aa0b0;
+    --accent:#6ee7b7; --accent2:#fbbf24; --danger:#f87171; --line:#3a3f4d;
+    --cell:62px;
+    /* tile tints */
+    --t-P:#3a4250; --t-N:#2f5d4a; --t-B:#2f4a6b; --t-R:#6b4a2f; --t-Q:#553a6b; --t-T:#6b2f55;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,Arial,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px}
+  h1{font-size:24px;margin:0 0 2px;letter-spacing:.5px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .main{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .boardwrap{position:relative}
+  .filelabels,.ranklabels{position:absolute;color:var(--muted);font-size:11px;font-weight:600}
+  #board{
+    display:grid;grid-template-columns:repeat(8,var(--cell));grid-template-rows:repeat(8,var(--cell));
+    border:3px solid #11131a;border-radius:8px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5);
+    user-select:none;
+  }
+  .cell{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;
+        transition:filter .08s;}
+  .cell:hover{filter:brightness(1.12)}
+  .cell.tP{background:var(--t-P)} .cell.tN{background:var(--t-N)} .cell.tB{background:var(--t-B)}
+  .cell.tR{background:var(--t-R)} .cell.tQ{background:var(--t-Q)} .cell.tT{background:var(--t-T)}
+  .cell.dark{filter:brightness(.9)}
+  .tileglyph{position:absolute;font-size:30px;opacity:.22;pointer-events:none;line-height:1}
+  .tilebadge{position:absolute;left:3px;bottom:2px;font-size:10px;font-weight:800;letter-spacing:.5px;
+             padding:1px 4px;border-radius:5px;background:rgba(0,0,0,.42);color:#fff;opacity:.9;pointer-events:none}
+  .piece{position:relative;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+         font-size:24px;font-weight:700;box-shadow:0 3px 6px rgba(0,0,0,.45);z-index:2;}
+  .piece.w{background:radial-gradient(circle at 35% 30%,#ffffff,#d6d8e0);color:#222;border:2px solid #9aa0b0}
+  .piece.b{background:radial-gradient(circle at 35% 30%,#4b515f,#1d2029);color:#f0f0f0;border:2px solid #11131a}
+  .piece.king{width:46px;height:46px;font-size:26px;box-shadow:0 0 0 3px var(--accent2),0 3px 8px rgba(0,0,0,.5)}
+  .cell.sel{outline:3px solid var(--accent2);outline-offset:-3px;z-index:3}
+  .cell.last{box-shadow:inset 0 0 0 3px rgba(110,231,183,.55)}
+  .dot{position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(110,231,183,.85);z-index:1;
+       box-shadow:0 0 6px rgba(110,231,183,.6)}
+  .ring{position:absolute;width:54px;height:54px;border-radius:50%;border:4px solid var(--danger);z-index:1;
+        box-shadow:0 0 8px rgba(248,113,113,.6)}
+  .cell.threat{outline:3px solid var(--danger);outline-offset:-3px}
+
+  .side{flex:1;min-width:300px;max-width:430px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .status{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;min-height:24px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.w{background:#e6e8ee;color:#222}.pill.b{background:#363b48;color:#fff}
+  .selinfo{color:var(--muted);font-size:13px;margin-top:6px;min-height:18px}
+  .banner{font-size:18px;font-weight:800;padding:10px 12px;border-radius:8px;text-align:center;margin-top:8px;display:none}
+  .banner.win{display:block;background:rgba(110,231,183,.15);border:1px solid var(--accent);color:var(--accent)}
+  .banner.lose{display:block;background:rgba(248,113,113,.15);border:1px solid var(--danger);color:var(--danger)}
+  .banner.draw{display:block;background:rgba(251,191,36,.12);border:1px solid var(--accent2);color:var(--accent2)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px}
+  label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px;font-weight:600}
+  select,input[type=number]{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;
+        padding:6px 8px;font-size:13px}
+  input[type=number]{width:90px}
+  button{background:var(--accent);color:#0b1f17;border:none;border-radius:8px;padding:9px 14px;font-weight:800;
+         cursor:pointer;font-size:13px}
+  button.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+  button:hover{filter:brightness(1.06)}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;color:var(--muted)}
+  .legend b{color:var(--ink)}
+  .lgswatch{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .log{max-height:180px;overflow:auto;font-family:"Cascadia Code",Consolas,monospace;font-size:12px;color:var(--muted);
+       background:#15171d;border-radius:7px;padding:8px 10px;line-height:1.5}
+  .log .mv{color:var(--ink)} .log .cap{color:var(--accent2)}
+  .think{display:none;color:var(--accent2);font-size:13px;font-weight:700;margin-left:6px}
+  .think.on{display:inline}
+  .hint{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chess <span>Unbound</span></h1>
+  <div class="sub">Every square is a <b>power tile</b>. A piece moves like whatever tile it stands on — the role changes every move. The <b>King ignores tiles</b> (always moves like a king). <b>Capture the enemy King to win.</b></div>
+
+  <div class="main">
+    <div class="boardwrap">
+      <div id="board" aria-label="game board"></div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <div class="status" id="status">Loading…</div>
+        <div class="selinfo" id="selinfo">Click one of your pieces to see how its tile lets it move.</div>
+        <div class="banner" id="banner"></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <label>You play
+            <select id="side">
+              <option value="w">White (move first)</option>
+              <option value="b">Black</option>
+            </select>
+          </label>
+          <label>AI strength
+            <select id="diff">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <label>Board seed
+            <input type="number" id="seed" value="1" min="0" />
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="newgame">New Game</button>
+          <button class="ghost" id="randseed">Random Board</button>
+          <span class="think" id="think">AI thinking…</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;margin-bottom:8px">Tiles — how a piece on it moves</div>
+        <div class="legend">
+          <div><span class="lgswatch" style="background:var(--t-P)"></span><b>Pawn</b> forward, takes diagonally</div>
+          <div><span class="lgswatch" style="background:var(--t-N)"></span><b>Knight</b> L-shaped jump</div>
+          <div><span class="lgswatch" style="background:var(--t-B)"></span><b>Bishop</b> diagonals</div>
+          <div><span class="lgswatch" style="background:var(--t-R)"></span><b>Rook</b> ranks &amp; files</div>
+          <div><span class="lgswatch" style="background:var(--t-Q)"></span><b>Queen</b> any line</div>
+          <div><span class="lgswatch" style="background:var(--t-T)"></span><b>Teleport</b> to any empty square</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;margin-bottom:6px">Move log</div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+//==ENGINE_START==  (pure logic — no DOM references below this marker, up to ENGINE_END)
+var ENGINE = (function () {
+  "use strict";
+
+  var SIZE = 8;
+  var TILES = ['P','N','B','R','Q','T']; // Pawn, kNight, Bishop, Rook, Queen, Teleport
+  // distribution across 64 squares (sums to 64)
+  var DISTRIB = { P:16, N:12, B:12, R:12, Q:8, T:4 };
+  var TILEVAL = { P:1, N:5, B:4, R:5, Q:8, T:2 };        // material-ish worth of being on a tile
+  var TILESTR = { P:1, N:4, B:4, R:4, Q:5, T:1 };        // ordering / teleport-target strength
+
+  var ROOK_DIRS  = [[-1,0],[1,0],[0,-1],[0,1]];
+  var BISH_DIRS  = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  var QUEEN_DIRS = ROOK_DIRS.concat(BISH_DIRS);
+  var KNIGHT_OFF = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function inB(r,c){ return r>=0 && r<SIZE && c>=0 && c<SIZE; }
+  function other(col){ return col === 'w' ? 'b' : 'w'; }
+
+  // ----- board construction -----
+  function buildTiles(seed){
+    var rng = mulberry32((seed|0) || 1);
+    var bag = [];
+    for (var k in DISTRIB){ for (var i=0;i<DISTRIB[k];i++) bag.push(k); }
+    // Fisher-Yates with seeded rng
+    for (var j=bag.length-1;j>0;j--){
+      var m = Math.floor(rng()*(j+1));
+      var tmp = bag[j]; bag[j]=bag[m]; bag[m]=tmp;
+    }
+    var t = [];
+    for (var r=0;r<SIZE;r++){ t.push([]); for (var c=0;c<SIZE;c++) t[r].push(bag[r*SIZE+c]); }
+    return t;
+  }
+
+  function emptyGrid(){
+    var g=[]; for(var r=0;r<SIZE;r++){ g.push([]); for(var c=0;c<SIZE;c++) g[r].push(null); } return g;
+  }
+
+  // pieces are immutable {c:'w'|'b', k:bool}
+  function initBoard(seed){
+    var tiles = buildTiles(seed);
+    var pieces = emptyGrid();
+    // Black occupies rows 0,1 (top); White occupies rows 6,7 (bottom). Kings on the back rank.
+    for (var c=0;c<SIZE;c++){
+      pieces[0][c] = { c:'b', k:false };
+      pieces[1][c] = { c:'b', k:false };
+      pieces[6][c] = { c:'w', k:false };
+      pieces[7][c] = { c:'w', k:false };
+    }
+    pieces[0][4] = { c:'b', k:true };  // black king
+    pieces[7][4] = { c:'w', k:true };  // white king
+    return { tiles:tiles, pieces:pieces, turn:'w', winner:null, lastMove:null, seed:(seed|0)||1 };
+  }
+
+  function cloneForMove(state){
+    // tiles are immutable & shared; clone the pieces grid (rows) only
+    var ng = new Array(SIZE);
+    for (var r=0;r<SIZE;r++){ ng[r] = state.pieces[r].slice(); }
+    return { tiles:state.tiles, pieces:ng, turn:state.turn, winner:state.winner, lastMove:state.lastMove, seed:state.seed };
+  }
+
+  function findKing(state, col){
+    for (var r=0;r<SIZE;r++) for (var c=0;c<SIZE;c++){
+      var p = state.pieces[r][c];
+      if (p && p.k && p.c===col) return [r,c];
+    }
+    return null;
+  }
+
+  // ----- move generation for the piece at (r,c) -----
+  // forSearch=true caps teleport destinations to keep AI branching sane (full set still used for the human).
+  function genMoves(state, r, c, forSearch){
+    var p = state.pieces[r][c];
+    if (!p) return [];
+    var col = p.c;
+    var out = [];
+
+    function pushIf(tr,tc, allowCap){
+      if (!inB(tr,tc)) return false;
+      var q = state.pieces[tr][tc];
+      if (!q){ out.push(mk(tr,tc,null)); return true; }          // empty -> can continue sliding
+      if (q.c !== col && allowCap !== false){ out.push(mk(tr,tc,q)); }
+      return false;                                              // blocked
+    }
+    function mk(tr,tc,cap){
+      return { from:[r,c], to:[tr,tc], capture:!!cap, capturesKing: !!(cap && cap.k), tileFrom: (p.k?'K':state.tiles[r][c]) };
+    }
+    function slide(dirs){
+      for (var d=0; d<dirs.length; d++){
+        var tr=r+dirs[d][0], tc=c+dirs[d][1];
+        while (inB(tr,tc)){
+          var q = state.pieces[tr][tc];
+          if (!q){ out.push(mk(tr,tc,null)); }
+          else { if (q.c!==col) out.push(mk(tr,tc,q)); break; }
+          tr+=dirs[d][0]; tc+=dirs[d][1];
+        }
+      }
+    }
+
+    if (p.k){
+      // King ALWAYS moves like a king, ignoring its tile.
+      for (var d=0; d<QUEEN_DIRS.length; d++) pushIf(r+QUEEN_DIRS[d][0], c+QUEEN_DIRS[d][1], true);
+      return out;
+    }
+
+    var tile = state.tiles[r][c];
+    switch (tile){
+      case 'P': {
+        var fwd = (col==='w') ? -1 : 1;                 // white moves up (toward row 0)
+        // forward one (only into empty)
+        if (inB(r+fwd,c) && !state.pieces[r+fwd][c]) out.push(mk(r+fwd,c,null));
+        // diagonal captures only
+        for (var dc=-1; dc<=1; dc+=2){
+          var tr=r+fwd, tc=c+dc;
+          if (inB(tr,tc)){ var q=state.pieces[tr][tc]; if (q && q.c!==col) out.push(mk(tr,tc,q)); }
+        }
+        break;
+      }
+      case 'N': {
+        for (var i=0;i<KNIGHT_OFF.length;i++) pushIf(r+KNIGHT_OFF[i][0], c+KNIGHT_OFF[i][1], true);
+        break;
+      }
+      case 'B': slide(BISH_DIRS); break;
+      case 'R': slide(ROOK_DIRS); break;
+      case 'Q': slide(QUEEN_DIRS); break;
+      case 'T': {
+        // teleport to ANY empty square (cannot capture)
+        var dests = [];
+        for (var tr2=0;tr2<SIZE;tr2++) for (var tc2=0;tc2<SIZE;tc2++){
+          if (!state.pieces[tr2][tc2] && !(tr2===r && tc2===c)) dests.push([tr2,tc2]);
+        }
+        if (forSearch && dests.length > 8){
+          var ek = findKing(state, other(col));
+          dests.sort(function(a,b){ return tscore(b)-tscore(a); });
+          function tscore(d){
+            var s = TILESTR[state.tiles[d[0]][d[1]]] || 0;
+            if (ek){ s += (7 - Math.max(Math.abs(d[0]-ek[0]), Math.abs(d[1]-ek[1]))); }
+            return s;
+          }
+          dests = dests.slice(0,8);
+        }
+        for (var z=0; z<dests.length; z++) out.push(mk(dests[z][0], dests[z][1], null));
+        break;
+      }
+    }
+    return out;
+  }
+
+  function allMoves(state, col, forSearch){
+    var moves = [];
+    for (var r=0;r<SIZE;r++) for (var c=0;c<SIZE;c++){
+      var p = state.pieces[r][c];
+      if (p && p.c===col){
+        var ms = genMoves(state, r, c, forSearch);
+        for (var i=0;i<ms.length;i++) moves.push(ms[i]);
+      }
+    }
+    return moves;
+  }
+
+  function applyMove(state, m){
+    var ns = cloneForMove(state);
+    var fr=m.from, to=m.to;
+    var moving = ns.pieces[fr[0]][fr[1]];
+    var target = ns.pieces[to[0]][to[1]];
+    ns.pieces[to[0]][to[1]] = moving;
+    ns.pieces[fr[0]][fr[1]] = null;
+    if (target && target.k){ ns.winner = moving.c; }   // captured a king -> win
+    ns.lastMove = { from:fr.slice(), to:to.slice() };
+    ns.turn = other(state.turn);
+    return ns;
+  }
+
+  // ----- evaluation (from `col` perspective) -----
+  function evaluate(state, col){
+    if (state.winner){
+      return state.winner === col ? 1000000 : -1000000;
+    }
+    var score = 0;
+    var myKing=null, opKing=null;
+    var r,c,p;
+    for (r=0;r<SIZE;r++) for (c=0;c<SIZE;c++){
+      p = state.pieces[r][c];
+      if (!p) continue;
+      if (p.k){ if (p.c===col) myKing=[r,c]; else opKing=[r,c]; continue; }
+      var v = 100 + (TILEVAL[state.tiles[r][c]] || 0);
+      score += (p.c===col) ? v : -v;
+    }
+    // king pressure: reward own pieces crowding the enemy king, punish the reverse
+    for (r=0;r<SIZE;r++) for (c=0;c<SIZE;c++){
+      p = state.pieces[r][c];
+      if (!p || p.k) continue;
+      var enemyK = (p.c===col) ? opKing : myKing;
+      if (!enemyK) continue;
+      var dist = Math.max(Math.abs(r-enemyK[0]), Math.abs(c-enemyK[1]));
+      var press = Math.max(0, 7 - dist) * 0.8;
+      score += (p.c===col) ? press : -press;
+    }
+    return score;
+  }
+
+  // ----- search (negamax + alpha-beta + iterative deepening) -----
+  function orderMoves(state, moves){
+    for (var i=0;i<moves.length;i++){
+      var m = moves[i];
+      var s = 0;
+      if (m.capturesKing) s = 1e6;
+      else if (m.capture) s = 1000 + (TILESTR[state.tiles[m.to[0]][m.to[1]]]||0);
+      else s = (TILESTR[state.tiles[m.to[0]][m.to[1]]]||0);
+      m._o = s;
+    }
+    moves.sort(function(a,b){ return b._o - a._o; });
+    return moves;
+  }
+
+  function negamax(state, depth, alpha, beta, col, ctx, ply){
+    if (state.winner){
+      // prefer faster wins / slower losses
+      return state.winner === col ? (1000000 - ply) : -(1000000 - ply);
+    }
+    if (depth === 0) return evaluate(state, col);
+    ctx.nodes++;
+    if (ctx.nodes > ctx.maxNodes || now() > ctx.deadline){ ctx.aborted = true; return evaluate(state, col); }
+
+    var moves = orderMoves(state, allMoves(state, col, true));
+    if (moves.length === 0) return -(1000000 - ply); // side to move cannot move -> it loses
+    var best = -Infinity;
+    for (var i=0;i<moves.length;i++){
+      var child = applyMove(state, moves[i]);
+      var val = -negamax(child, depth-1, -beta, -alpha, other(col), ctx, ply+1);
+      if (ctx.aborted) return best > -Infinity ? best : val;
+      if (val > best) best = val;
+      if (val > alpha) alpha = val;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  function rootSearch(state, col, depth, ctx){
+    var moves = orderMoves(state, allMoves(state, col, true));
+    if (moves.length === 0) return { move:null, score:0, scored:[] };
+    var alpha=-Infinity, beta=Infinity, best=-Infinity, bestMove=moves[0];
+    var scored=[];
+    for (var i=0;i<moves.length;i++){
+      var child = applyMove(state, moves[i]);
+      var val = -negamax(child, depth-1, -beta, -alpha, other(col), ctx, 1);
+      if (ctx.aborted){ if (scored.length===0) scored.push({move:moves[i],score:val}); break; }
+      scored.push({ move:moves[i], score:val });
+      if (val > best){ best = val; bestMove = moves[i]; }
+      if (val > alpha) alpha = val;
+    }
+    return { move:bestMove, score:best, scored:scored };
+  }
+
+  var _now = (typeof performance!=='undefined' && performance.now) ? function(){return performance.now();} : function(){return +new Date();};
+  function now(){ return _now(); }
+
+  // deterministic flag for tests (no random tie-break)
+  var DETERMINISTIC = false;
+  var _airng = Math.random;
+
+  function chooseAIMove(state, difficulty){
+    var col = state.turn;
+    var legal = allMoves(state, col, false);
+    if (legal.length === 0) return null;
+
+    // 1) take an immediate king capture if available (instant win)
+    for (var i=0;i<legal.length;i++) if (legal[i].capturesKing) return legal[i];
+
+    var maxDepth = difficulty==='easy' ? 1 : (difficulty==='hard' ? 3 : 2);
+    var budget   = difficulty==='hard' ? 1500 : (difficulty==='easy' ? 250 : 700);
+    var ctx = { nodes:0, maxNodes: difficulty==='hard'?260000:90000, deadline: now()+budget, aborted:false };
+
+    var chosen = legal[0], lastScored = null;
+    for (var d=1; d<=maxDepth; d++){
+      ctx.aborted = false;
+      var res = rootSearch(state, col, d, ctx);
+      if (res.move){ chosen = res.move; lastScored = res.scored; }
+      if (ctx.aborted) break;
+    }
+
+    // 2) safety: never hand the opponent an immediate king capture when a safe move exists.
+    //    Filter over the FULL legal set (incl. every teleport interpose) — NOT the
+    //    teleport-capped search set, whose cap can drop a uniquely-saving teleport.
+    var safe = filterKingSafe(state, legal, col);
+    if (safe.length){
+      // rank safe moves by their search score where we have one (search uses the capped
+      // move set, so its moves are distinct objects — match by board coordinates).
+      var scoreOf = {};
+      if (lastScored){ for (var k=0;k<lastScored.length;k++) scoreOf[moveKey(lastScored[k].move)] = lastScored[k].score; }
+      var scoredSafe = [], unscoredSafe = [];
+      for (var s2=0;s2<safe.length;s2++){
+        var key = moveKey(safe[s2]);
+        if (Object.prototype.hasOwnProperty.call(scoreOf, key)) scoredSafe.push({ move:safe[s2], score:scoreOf[key] });
+        else unscoredSafe.push(safe[s2]);
+      }
+      if (scoredSafe.length){
+        scoredSafe.sort(function(a,b){ return b.score-a.score; });
+        var top = scoredSafe[0].score;
+        var near = scoredSafe.filter(function(x){ return x.score >= top - 1.0; }).map(function(x){ return x.move; });
+        chosen = pickFrom(near, difficulty);
+      } else {
+        // every king-safe move was dropped by the search cap (e.g. teleport interpose) -> use them
+        chosen = pickFrom(unscoredSafe.length ? unscoredSafe : safe, difficulty);
+      }
+    }
+    return chosen;
+  }
+
+  function moveKey(m){ return m.from[0]+','+m.from[1]+'->'+m.to[0]+','+m.to[1]; }
+
+  function filterKingSafe(state, moves, col){
+    var safe = [];
+    for (var i=0;i<moves.length;i++){
+      var child = applyMove(state, moves[i]);
+      if (child.winner === col) { safe.push(moves[i]); continue; } // winning move is "safe"
+      // does opponent have an immediate king capture in reply?
+      var opp = allMoves(child, other(col), true);
+      var hangs = false;
+      for (var j=0;j<opp.length;j++){ if (opp[j].capturesKing){ hangs = true; break; } }
+      if (!hangs) safe.push(moves[i]);
+    }
+    return safe;
+  }
+
+  function pickFrom(moves, difficulty){
+    if (!moves.length) return null;
+    if (DETERMINISTIC) return moves[0];
+    if (difficulty==='hard') return moves[0];
+    // a little variety for easy/medium
+    var n = difficulty==='easy' ? moves.length : Math.min(moves.length, 3);
+    return moves[Math.floor(_airng()*n)];
+  }
+
+  return {
+    SIZE:SIZE, TILES:TILES, DISTRIB:DISTRIB,
+    mulberry32:mulberry32, inB:inB, other:other,
+    initBoard:initBoard, buildTiles:buildTiles,
+    genMoves:genMoves, allMoves:allMoves, applyMove:applyMove,
+    evaluate:evaluate, findKing:findKing,
+    chooseAIMove:chooseAIMove, filterKingSafe:filterKingSafe,
+    setDeterministic:function(v){ DETERMINISTIC=!!v; },
+    setAIRandom:function(fn){ _airng = fn || Math.random; }
+  };
+})();
+//==ENGINE_END==
+
+// ---------------- UI (DOM) ----------------
+(function(){
+  if (typeof document === 'undefined') return; // allow headless engine use
+
+  var E = ENGINE;
+  var TILE_NAME = { P:'Pawn', N:'Knight', B:'Bishop', R:'Rook', Q:'Queen', T:'Teleport', K:'King' };
+  var TILE_GLYPH = { P:'♟', N:'♞', B:'♝', R:'♜', Q:'♛', T:'✦' };
+  var MOVE_DESC = {
+    P:'moves forward & captures diagonally', N:'jumps in an L', B:'slides on diagonals',
+    R:'slides on ranks & files', Q:'slides on any line', T:'teleports to any empty square', K:'moves one square any way'
+  };
+
+  var state, humanColor='w', difficulty='medium', selected=null, legalForSel=[], aiBusy=false, gameNo=0;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var selinfoEl = document.getElementById('selinfo');
+  var bannerEl = document.getElementById('banner');
+  var logEl = document.getElementById('log');
+  var thinkEl = document.getElementById('think');
+
+  function fileLetter(c){ return 'abcdefgh'[c]; }
+  function rankNum(r){ return 8 - r; }
+  function sqName(r,c){ return fileLetter(c)+rankNum(r); }
+
+  function newGame(seed){
+    gameNo++;
+    state = E.initBoard(seed);
+    selected = null; legalForSel = []; aiBusy=false; thinkEl.classList.remove('on');
+    bannerEl.className='banner'; bannerEl.textContent='';
+    logEl.innerHTML=''; selinfoEl.textContent='';
+    render();
+    maybeAI();
+  }
+
+  function render(){
+    boardEl.innerHTML='';
+    var lm = state.lastMove;
+    var selKey = selected ? (selected[0]+','+selected[1]) : null;
+    var targets = {};
+    for (var i=0;i<legalForSel.length;i++){ targets[legalForSel[i].to[0]+','+legalForSel[i].to[1]] = legalForSel[i]; }
+
+    for (var r=0;r<E.SIZE;r++){
+      for (var c=0;c<E.SIZE;c++){
+        var tile = state.tiles[r][c];
+        var cell = document.createElement('div');
+        cell.className = 'cell t'+tile + (((r+c)%2)?' dark':'');
+        cell.dataset.r=r; cell.dataset.c=c;
+        cell.title = sqName(r,c)+' — '+TILE_NAME[tile]+' tile';
+
+        var g = document.createElement('span'); g.className='tileglyph'; g.textContent=TILE_GLYPH[tile]; cell.appendChild(g);
+        var badge = document.createElement('span'); badge.className='tilebadge'; badge.textContent = (tile==='N'?'KN':tile); cell.appendChild(badge);
+
+        if (lm && ((lm.from[0]===r&&lm.from[1]===c)||(lm.to[0]===r&&lm.to[1]===c))) cell.classList.add('last');
+        if (selKey === r+','+c) cell.classList.add('sel');
+
+        var p = state.pieces[r][c];
+        if (p){
+          var pe = document.createElement('div');
+          pe.className = 'piece '+p.c+(p.k?' king':'');
+          pe.textContent = p.k ? (p.c==='w'?'♔':'♚') : '';
+          cell.appendChild(pe);
+        }
+        var t = targets[r+','+c];
+        if (t){
+          var mark = document.createElement('span');
+          mark.className = t.capture ? 'ring' : 'dot';
+          cell.appendChild(mark);
+        }
+        boardEl.appendChild(cell);
+      }
+    }
+    updateStatus();
+  }
+
+  function updateStatus(){
+    if (state.winner){
+      var youWin = state.winner === humanColor;
+      var byNoMoves = !!state.winByNoMoves;
+      var how = byNoMoves ? (colorName(E.other(state.winner))+' has no legal moves')
+                          : (colorName(state.winner)+' captured the king');
+      statusEl.innerHTML = (youWin?'You win!':'AI wins') + ' — ' + how;
+      if (byNoMoves) showBanner(youWin?'win':'lose', youWin?'You win — the AI has no legal moves!':'You have no legal moves — you lose.');
+      else showBanner(youWin?'win':'lose', youWin?'👑 You captured the enemy king — you win!':'The AI captured your king. You lose.');
+      return;
+    }
+    var turnPill = '<span class="pill '+state.turn+'">'+colorName(state.turn)+'</span>';
+    var who = state.turn===humanColor ? 'Your move' : 'AI to move';
+    statusEl.innerHTML = turnPill + ' ' + who;
+  }
+
+  function showBanner(kind,msg){ bannerEl.className='banner '+kind; bannerEl.textContent=msg; }
+  function colorName(col){ return col==='w'?'White':'Black'; }
+
+  function setSelInfo(r,c){
+    var p = state.pieces[r][c];
+    if (!p){ selinfoEl.textContent=''; return; }
+    var tile = p.k ? 'K' : state.tiles[r][c];
+    var n = legalForSel.length;
+    selinfoEl.innerHTML = 'Selected '+colorName(p.c)+(p.k?' King':' pawn')+' on <b>'+TILE_NAME[tile]+'</b> tile — '+MOVE_DESC[tile]+'. <b>'+n+'</b> move'+(n===1?'':'s')+'.';
+  }
+
+  boardEl.addEventListener('click', function(ev){
+    var cell = ev.target.closest('.cell'); if (!cell) return;
+    if (state.winner || aiBusy) return;
+    if (state.turn !== humanColor) return;
+    var r = +cell.dataset.r, c = +cell.dataset.c;
+
+    // clicking a legal target -> move
+    if (selected){
+      for (var i=0;i<legalForSel.length;i++){
+        if (legalForSel[i].to[0]===r && legalForSel[i].to[1]===c){
+          doHumanMove(legalForSel[i]);
+          return;
+        }
+      }
+    }
+    var p = state.pieces[r][c];
+    if (p && p.c===humanColor){
+      selected = [r,c];
+      legalForSel = E.genMoves(state, r, c, false);
+      render();
+      setSelInfo(r,c);
+    } else {
+      selected=null; legalForSel=[]; render();
+      selinfoEl.textContent='';
+    }
+  });
+
+  function logMove(col, m){
+    var div = document.createElement('div');
+    var cap = m.capturesKing ? ' <span class="cap">×K</span>' : (m.capture ? ' <span class="cap">×</span>' : '');
+    div.innerHTML = '<span class="mv">'+(col==='w'?'W':'B')+'</span> '+sqName(m.from[0],m.from[1])+'→'+sqName(m.to[0],m.to[1])+cap+
+                    ' <span style="opacity:.6">['+TILE_NAME[m.tileFrom]+']</span>';
+    logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function doHumanMove(m){
+    var col = state.turn;
+    state = E.applyMove(state, m);
+    logMove(col, m);
+    selected=null; legalForSel=[]; selinfoEl.textContent='';
+    checkNoMoves();
+    render();
+    maybeAI();
+  }
+
+  // Chess Unbound has no draw/stalemate: the only win is capturing the king. The rules are
+  // silent on a side with zero legal moves (near-unreachable — a king almost always has a
+  // move). We resolve it decisively: a side that cannot move loses (it can never capture the
+  // enemy king and cannot escape). This avoids a softlock without inventing a "draw" outcome.
+  function checkNoMoves(){
+    if (state.winner) return;
+    if (E.allMoves(state, state.turn, false).length === 0){
+      state.winner = E.other(state.turn);
+      state.winByNoMoves = true;
+    }
+  }
+
+  function maybeAI(){
+    if (state.winner) return;
+    if (state.turn === humanColor) return;
+    aiBusy = true; thinkEl.classList.add('on');
+    var myGame = gameNo;
+    setTimeout(function(){
+      // always tidy our own indicator/flag first, even if superseded
+      thinkEl.classList.remove('on'); aiBusy=false;
+      if (myGame !== gameNo) return;            // a new game/position started meanwhile
+      if (state.winner || state.turn === humanColor) return; // state advanced (e.g. test drove it)
+      var m = E.chooseAIMove(state, difficulty);
+      if (!m){ checkNoMoves(); render(); return; }   // AI has no move -> it loses
+      var col = state.turn;
+      state = E.applyMove(state, m);
+      logMove(col, m);
+      checkNoMoves();
+      render();
+      // (AI never moves twice; turn is human's now)
+    }, 240);
+  }
+
+  // ---- controls ----
+  document.getElementById('newgame').addEventListener('click', function(){
+    humanColor = document.getElementById('side').value;
+    difficulty = document.getElementById('diff').value;
+    var seed = parseInt(document.getElementById('seed').value,10); if (isNaN(seed)) seed=1;
+    newGame(seed);
+  });
+  document.getElementById('randseed').addEventListener('click', function(){
+    var s = Math.floor(Math.random()*100000);
+    document.getElementById('seed').value = s;
+    humanColor = document.getElementById('side').value;
+    difficulty = document.getElementById('diff').value;
+    newGame(s);
+  });
+  document.getElementById('diff').addEventListener('change', function(){ difficulty=this.value; });
+  document.getElementById('side').addEventListener('change', function(){ /* applies on New Game */ });
+
+  // ---- test/automation API ----
+  window.GAME = {
+    engine: E,
+    get state(){ return state; },
+    newGame: function(opts){
+      opts = opts||{};
+      if (opts.humanColor){ humanColor=opts.humanColor; document.getElementById('side').value=opts.humanColor; }
+      if (opts.difficulty){ difficulty=opts.difficulty; document.getElementById('diff').value=opts.difficulty; }
+      var seed = (opts.seed!=null)?opts.seed:parseInt(document.getElementById('seed').value,10)||1;
+      document.getElementById('seed').value = seed;
+      newGame(seed);
+    },
+    snapshot: function(){
+      return {
+        turn: state.turn, winner: state.winner, humanColor: humanColor, difficulty: difficulty,
+        tiles: state.tiles.map(function(row){ return row.join(''); }),
+        pieces: state.pieces.map(function(row){ return row.map(function(p){ return p?((p.c)+(p.k?'K':'p')):'..'; }).join(' '); })
+      };
+    },
+    legalMoves: function(r,c){ return E.genMoves(state, r, c, false).map(function(m){ return {to:m.to, capture:m.capture, capturesKing:m.capturesKing}; }); },
+    humanMove: function(from,to){
+      if (state.turn!==humanColor || state.winner) return false;
+      var ms = E.genMoves(state, from[0], from[1], false);
+      for (var i=0;i<ms.length;i++) if (ms[i].to[0]===to[0]&&ms[i].to[1]===to[1]){ doHumanMove(ms[i]); return true; }
+      return false;
+    },
+    aiStepNow: function(){ // synchronous AI move for tests
+      if (state.winner || state.turn===humanColor) return null;
+      var m = E.chooseAIMove(state, difficulty);
+      if (!m) { checkNoMoves(); render(); return null; }
+      var c0 = state.turn;
+      state = E.applyMove(state, m); logMove(c0, m); checkNoMoves(); render();
+      return m;
+    },
+    loadPosition: function(pos){
+      // pos.tiles : 8 row-strings ("QTRNNPRB") OR 8 arrays of single chars
+      // pos.pieces: 8 rows, each an array of tokens ['..','wp','bK'...] OR a space-joined
+      //             string ("bp bp .. wK") — both accepted (snapshot() emits the string form).
+      gameNo++;
+      function tileRow(row){ return (typeof row === 'string') ? row.split('') : row.slice(); }
+      function pieceCells(row){ return (typeof row === 'string') ? row.trim().split(/\s+/) : row; }
+      var tiles = pos.tiles.map(tileRow);
+      var pieces = [];
+      for (var r=0;r<8;r++){
+        var cells = pieceCells(pos.pieces[r]);
+        pieces.push([]);
+        for (var c=0;c<8;c++){
+          var cellStr = cells[c];
+          if (!cellStr || cellStr==='..' || cellStr==='') pieces[r].push(null);
+          else pieces[r].push({ c:cellStr[0], k: cellStr[1]==='K' });
+        }
+      }
+      state = { tiles:tiles, pieces:pieces, turn:pos.turn||'w', winner:null, lastMove:null, seed:pos.seed||1 };
+      if (pos.humanColor){ humanColor=pos.humanColor; document.getElementById('side').value=pos.humanColor; }
+      if (pos.difficulty){ difficulty=pos.difficulty; }
+      selected=null; legalForSel=[]; aiBusy=false; thinkEl.classList.remove('on');
+      bannerEl.className='banner'; bannerEl.textContent=''; logEl.innerHTML=''; selinfoEl.textContent='';
+      render();
+      maybeAI();   // if the loaded position is AI-to-move, let it play
+      return true;
+    },
+    setDeterministic: function(v){ E.setDeterministic(v); }
+  };
+
+  // boot
+  newGame(1);
+})();
+</script>
+</body>
+</html>
